@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import type {
   ComicProject,
   Frame,
+  FrameImageState,
   MongolianCheckResult,
   ProjectSettings,
   TabId,
@@ -13,6 +14,7 @@ import {
 } from "../constants";
 import { generateComicProject, regenerateFrame, MOCK_GENERATION_DELAY_MS } from "../lib/mockAI";
 import { runMongolianCheck } from "../lib/mongolianCheck";
+import { generateImage, ImageGenError } from "../lib/imageGen";
 
 export const DEFAULT_SETTINGS: ProjectSettings = {
   topic: "",
@@ -34,6 +36,7 @@ interface ProjectState {
   isGenerating: boolean;
   activeTab: TabId;
   mongolianCheck: MongolianCheckResult;
+  imageGenState: Record<number, FrameImageState>;
 
   setActiveTab: (tab: TabId) => void;
   updateSettings: (patch: Partial<ProjectSettings>) => void;
@@ -45,6 +48,9 @@ interface ProjectState {
   moveFrame: (id: number, direction: "up" | "down") => void;
   regenerateFramePrompt: (id: number) => void;
   setFrameDuration: (id: number, duration: number) => void;
+
+  generateFrameImage: (id: number) => Promise<void>;
+  generateAllImages: () => Promise<void>;
 
   runProofread: () => void;
 }
@@ -61,6 +67,7 @@ export const useProjectStore = create<ProjectState>()(
       isGenerating: false,
       activeTab: "studio",
       mongolianCheck: { status: "idle", issues: [], checkedAt: null },
+      imageGenState: {},
 
       setActiveTab: (tab) => set({ activeTab: tab }),
 
@@ -77,6 +84,7 @@ export const useProjectStore = create<ProjectState>()(
           isGenerating: false,
           activeTab: "frames",
           mongolianCheck: { status: "idle", issues: [], checkedAt: null },
+          imageGenState: {},
         });
         get().runProofread();
       },
@@ -87,6 +95,7 @@ export const useProjectStore = create<ProjectState>()(
           project: null,
           activeTab: "studio",
           mongolianCheck: { status: "idle", issues: [], checkedAt: null },
+          imageGenState: {},
         }),
 
       updateFrame: (id, patch) =>
@@ -104,7 +113,7 @@ export const useProjectStore = create<ProjectState>()(
           const frames = applyFrameNumbering(
             state.project.frames.filter((f) => f.id !== id),
           );
-          return { project: { ...state.project, frames } };
+          return { project: { ...state.project, frames }, imageGenState: {} };
         }),
 
       moveFrame: (id, direction) =>
@@ -116,7 +125,10 @@ export const useProjectStore = create<ProjectState>()(
           const swapWith = direction === "up" ? idx - 1 : idx + 1;
           if (swapWith < 0 || swapWith >= frames.length) return state;
           [frames[idx], frames[swapWith]] = [frames[swapWith], frames[idx]];
-          return { project: { ...state.project, frames: applyFrameNumbering(frames) } };
+          return {
+            project: { ...state.project, frames: applyFrameNumbering(frames) },
+            imageGenState: {},
+          };
         }),
 
       regenerateFramePrompt: (id) =>
@@ -126,10 +138,48 @@ export const useProjectStore = create<ProjectState>()(
           if (idx === -1) return state;
           const fresh = regenerateFrame(state.settings, idx, state.project.frames.length);
           const frames = state.project.frames.map((f) =>
-            f.id === id ? { ...f, ...fresh } : f,
+            f.id === id ? { ...f, ...fresh, imageUrl: undefined } : f,
           );
           return { project: { ...state.project, frames } };
         }),
+
+      generateFrameImage: async (id) => {
+        const project = get().project;
+        const frame = project?.frames.find((f) => f.id === id);
+        if (!project || !frame) return;
+
+        set((state) => ({
+          imageGenState: { ...state.imageGenState, [id]: { loading: true, error: null } },
+        }));
+
+        try {
+          const imageUrl = await generateImage(frame.imagePrompt, get().settings.reelSize);
+          set((state) => {
+            if (!state.project) return state;
+            const frames = state.project.frames.map((f) =>
+              f.id === id ? { ...f, imageUrl } : f,
+            );
+            return {
+              project: { ...state.project, frames },
+              imageGenState: { ...state.imageGenState, [id]: { loading: false, error: null } },
+            };
+          });
+        } catch (err) {
+          const message = err instanceof ImageGenError ? err.message : "Зураг үүсгэхэд алдаа гарлаа.";
+          set((state) => ({
+            imageGenState: { ...state.imageGenState, [id]: { loading: false, error: message } },
+          }));
+        }
+      },
+
+      generateAllImages: async () => {
+        const frames = get().project?.frames ?? [];
+        for (const frame of frames) {
+          if (!frame.imageUrl) {
+            await get().generateFrameImage(frame.id);
+          }
+        }
+      },
 
       setFrameDuration: (id, duration) =>
         set((state) => {

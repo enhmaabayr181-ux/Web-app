@@ -56,6 +56,12 @@ export interface Frame {
   emotion: string;
   imagePrompt: string;
   duration: number;
+  imageUrl?: string;
+}
+
+export interface FrameImageState {
+  loading: boolean;
+  error: string | null;
 }
 
 export interface CaptionSet {

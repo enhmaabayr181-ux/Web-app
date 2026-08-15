@@ -3,6 +3,7 @@ import { Card, SectionTitle } from "../common/Card";
 import { ChipGroup } from "../common/ChipGroup";
 import { Toggle } from "../common/Toggle";
 import { Button } from "../common/Button";
+import { ImageApiSettings } from "./ImageApiSettings";
 import { useProjectStore } from "../../store/useProjectStore";
 import {
   CATEGORY_OPTIONS,
@@ -148,6 +149,8 @@ export function StudioPanel() {
           onChange={(endingType) => updateSettings({ endingType })}
         />
       </Card>
+
+      <ImageApiSettings />
 
       <div className="sticky bottom-20 lg:bottom-4 z-10 pt-2">
         <Button

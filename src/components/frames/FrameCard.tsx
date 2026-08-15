@@ -27,6 +27,8 @@ export function FrameCard({
   const deleteFrame = useProjectStore((s) => s.deleteFrame);
   const moveFrame = useProjectStore((s) => s.moveFrame);
   const regenerateFramePrompt = useProjectStore((s) => s.regenerateFramePrompt);
+  const generateFrameImage = useProjectStore((s) => s.generateFrameImage);
+  const imageState = useProjectStore((s) => s.imageGenState[frame.id]);
   const style = useProjectStore((s) => s.settings.style);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -82,12 +84,35 @@ export function FrameCard({
       </div>
 
       <div className="aspect-[9/16] max-h-64 w-full rounded-2xl bg-gradient-to-br from-peach via-pink to-lavender flex flex-col items-center justify-center gap-2 mb-4 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_30%_20%,white,transparent_60%)]" />
-        <span className="text-4xl relative">{STYLE_EMOJI[style] ?? "🎨"}</span>
-        <p className="text-xs text-ink/60 font-medium relative px-6 text-center">
-          Preview — image generation API холбогдоход энд зураг гарна
-        </p>
+        {frame.imageUrl ? (
+          <img src={frame.imageUrl} alt={frame.text} className="absolute inset-0 h-full w-full object-cover" />
+        ) : (
+          <>
+            <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_30%_20%,white,transparent_60%)]" />
+            <span className="text-4xl relative">{STYLE_EMOJI[style] ?? "🎨"}</span>
+            {imageState?.loading ? (
+              <p className="text-xs text-ink/70 font-medium relative px-6 text-center flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-ink/60 animate-pulse" />
+                Зураг үүсгэж байна…
+              </p>
+            ) : (
+              <p className="text-xs text-ink/60 font-medium relative px-6 text-center">
+                Preview — доорх товчоор жинхэнэ зураг үүсгэнэ
+              </p>
+            )}
+          </>
+        )}
+        <button
+          onClick={() => generateFrameImage(frame.id)}
+          disabled={imageState?.loading}
+          className="absolute bottom-2 right-2 text-xs font-medium bg-white/90 hover:bg-white text-ink px-3 py-1.5 rounded-full shadow-card disabled:opacity-60 transition-colors"
+        >
+          {imageState?.loading ? "…" : frame.imageUrl ? "↻ Дахин үүсгэх" : "🖼 Зураг үүсгэх"}
+        </button>
       </div>
+      {imageState?.error && (
+        <p className="text-xs text-rose-500 -mt-2.5 mb-3.5">{imageState.error}</p>
+      )}
 
       <Field label="Дэлгэцийн текст">
         {isEditing ? (

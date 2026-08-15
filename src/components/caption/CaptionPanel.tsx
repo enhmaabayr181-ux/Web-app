@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Card, SectionTitle } from "../common/Card";
-import { Button } from "../common/Button";
 import { EmptyState } from "../common/EmptyState";
 import { ExportSection } from "../export/ExportSection";
 import { useProjectStore } from "../../store/useProjectStore";
@@ -81,12 +80,6 @@ export function CaptionPanel() {
       </Card>
 
       <ExportSection />
-
-      <div className="text-center pt-2">
-        <Button variant="ghost" size="sm" disabled title="Дараагийн хувилбарт ирнэ">
-          🖼 Connect image generation API (coming soon)
-        </Button>
-      </div>
     </div>
   );
 }
