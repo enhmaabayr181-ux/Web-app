@@ -2,13 +2,29 @@ import type { ReelSizeId } from "../types";
 
 const API_KEY_STORAGE = "comic-reel-studio:gemini-api-key";
 const MODEL_STORAGE = "comic-reel-studio:gemini-model";
+const PROVIDER_STORAGE = "comic-reel-studio:image-provider";
+
+export type ImageProvider = "pollinations" | "gemini";
 
 // Imagen's :predict endpoint (imagen-4.0-generate-001) now 404s for new
 // API keys — Google's own error points new accounts at the generateContent
 // image models instead. gemini-2.5-flash-image is confirmed live (verified
 // against a real key: request succeeds down to the free-tier quota check,
-// i.e. no 404/400 — only 429 RESOURCE_EXHAUSTED on that account's daily cap).
+// i.e. no 404/400 — only 429 RESOURCE_EXHAUSTED, and on that account the
+// free-tier limit for image models is 0, so it needs billing enabled).
 export const DEFAULT_IMAGE_MODEL = "gemini-2.5-flash-image";
+
+export function getProvider(): ImageProvider {
+  return localStorage.getItem(PROVIDER_STORAGE) === "gemini" ? "gemini" : "pollinations";
+}
+
+export function setProvider(provider: ImageProvider) {
+  if (provider === "gemini") {
+    localStorage.setItem(PROVIDER_STORAGE, "gemini");
+  } else {
+    localStorage.removeItem(PROVIDER_STORAGE);
+  }
+}
 
 // Kept separate from the persisted project store (which gets exported to
 // project JSON) so an API key never ends up in an exported file.
@@ -42,6 +58,18 @@ function aspectRatioFor(reelSize: ReelSizeId): "9:16" | "1:1" | "3:4" {
   return "9:16";
 }
 
+function pixelSizeFor(reelSize: ReelSizeId): { width: number; height: number } {
+  if (reelSize === "1:1") return { width: 1024, height: 1024 };
+  if (reelSize === "4:5") return { width: 896, height: 1120 };
+  return { width: 768, height: 1365 };
+}
+
+function hashString(str: string): number {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
 export class ImageGenError extends Error {
   status?: number;
   constructor(message: string, status?: number) {
@@ -49,6 +77,26 @@ export class ImageGenError extends Error {
     this.name = "ImageGenError";
     this.status = status;
   }
+}
+
+/**
+ * Free, anonymous, no-signup image generation — a public GET endpoint that
+ * returns image bytes directly, so the URL itself can be used as an <img
+ * src> with no fetch/API-key/billing needed. This is the default provider.
+ * A fixed seed (derived from the prompt) keeps "regenerate" producing a
+ * different image on request while a re-render of the same frame doesn't
+ * silently reroll it.
+ */
+function pollinationsUrl(prompt: string, reelSize: ReelSizeId, variant = 0): string {
+  const { width, height } = pixelSizeFor(reelSize);
+  const seed = (hashString(prompt) + variant) % 1_000_000;
+  const params = new URLSearchParams({
+    width: String(width),
+    height: String(height),
+    seed: String(seed),
+    nologo: "true",
+  });
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${params.toString()}`;
 }
 
 interface GenerateContentPart {
@@ -64,7 +112,7 @@ interface GenerateContentPart {
  * into Postman. Fine for personal/local use; don't ship a build with a
  * real key baked in for a public deployment.
  */
-export async function generateImage(prompt: string, reelSize: ReelSizeId): Promise<string> {
+async function generateWithGemini(prompt: string, reelSize: ReelSizeId): Promise<string> {
   const apiKey = getApiKey();
   if (!apiKey) {
     throw new ImageGenError("Эхлээд Studio хэсэгт Gemini API key-ээ оруулна уу.");
@@ -95,7 +143,8 @@ export async function generateImage(prompt: string, reelSize: ReelSizeId): Promi
     if (res.status === 401 || res.status === 403) message = "API key буруу эсвэл хүчингүй байна.";
     if (res.status === 404) message = "Энэ model олдсонгүй — Studio хэсэгт model нэрээ шалгана уу.";
     if (res.status === 429)
-      message = "Free tier-ийн зургийн quota дууссан байна (өдрийн/минутын хязгаар) — Google AI Studio дээрээ billing идэвхжүүлэх эсвэл түр хүлээгээд дахин оролдоно уу.";
+      message =
+        "Free tier-ийн зургийн quota дууссан байна (ихэвчлэн 0 байдаг) — Google AI Studio дээрээ billing идэвхжүүлэх эсвэл Pollinations (үнэгүй) руу шилжинэ үү.";
     try {
       const body = await res.json();
       const apiMessage = body?.error?.message;
@@ -114,4 +163,15 @@ export async function generateImage(prompt: string, reelSize: ReelSizeId): Promi
   }
   const mimeType = imagePart.inlineData.mimeType || "image/png";
   return `data:${mimeType};base64,${imagePart.inlineData.data}`;
+}
+
+export async function generateImage(
+  prompt: string,
+  reelSize: ReelSizeId,
+  variant = 0,
+): Promise<string> {
+  if (getProvider() === "gemini") {
+    return generateWithGemini(prompt, reelSize);
+  }
+  return pollinationsUrl(prompt, reelSize, variant);
 }

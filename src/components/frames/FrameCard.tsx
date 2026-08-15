@@ -28,6 +28,7 @@ export function FrameCard({
   const moveFrame = useProjectStore((s) => s.moveFrame);
   const regenerateFramePrompt = useProjectStore((s) => s.regenerateFramePrompt);
   const generateFrameImage = useProjectStore((s) => s.generateFrameImage);
+  const reportImageLoadError = useProjectStore((s) => s.reportImageLoadError);
   const imageState = useProjectStore((s) => s.imageGenState[frame.id]);
   const style = useProjectStore((s) => s.settings.style);
 
@@ -85,7 +86,12 @@ export function FrameCard({
 
       <div className="aspect-[9/16] max-h-64 w-full rounded-2xl bg-gradient-to-br from-peach via-pink to-lavender flex flex-col items-center justify-center gap-2 mb-4 relative overflow-hidden">
         {frame.imageUrl ? (
-          <img src={frame.imageUrl} alt={frame.text} className="absolute inset-0 h-full w-full object-cover" />
+          <img
+            src={frame.imageUrl}
+            alt={frame.text}
+            className="absolute inset-0 h-full w-full object-cover"
+            onError={() => reportImageLoadError(frame.id)}
+          />
         ) : (
           <>
             <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_30%_20%,white,transparent_60%)]" />
