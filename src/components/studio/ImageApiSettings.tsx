@@ -35,6 +35,10 @@ export function ImageApiSettings() {
         дээрээс үнэгүй авах боломжтой. Key зөвхөн энэ browser-ийн localStorage-д хадгалагдаж, шууд
         Google руу явна (project JSON export-д ороохгүй) — зөвхөн хувийн/локал ашиглалтад тохиромжтой.
       </p>
+      <p className="text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2 mb-3 leading-relaxed">
+        ⚠️ Зургийн (image) моделүүдэд free tier-ийн quota ихэвчлэн 0 байдаг тул "429 quota" алдаа
+        гарвал Google AI Studio дээрх project-доо billing идэвхжүүлэх шаардлагатай байж болно.
+      </p>
 
       <label className="block text-xs font-semibold text-ink mb-1">API key</label>
       <input

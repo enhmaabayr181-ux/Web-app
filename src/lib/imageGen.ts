@@ -3,7 +3,12 @@ import type { ReelSizeId } from "../types";
 const API_KEY_STORAGE = "comic-reel-studio:gemini-api-key";
 const MODEL_STORAGE = "comic-reel-studio:gemini-model";
 
-export const DEFAULT_IMAGE_MODEL = "imagen-4.0-generate-001";
+// Imagen's :predict endpoint (imagen-4.0-generate-001) now 404s for new
+// API keys — Google's own error points new accounts at the generateContent
+// image models instead. gemini-2.5-flash-image is confirmed live (verified
+// against a real key: request succeeds down to the free-tier quota check,
+// i.e. no 404/400 — only 429 RESOURCE_EXHAUSTED on that account's daily cap).
+export const DEFAULT_IMAGE_MODEL = "gemini-2.5-flash-image";
 
 // Kept separate from the persisted project store (which gets exported to
 // project JSON) so an API key never ends up in an exported file.
@@ -46,12 +51,18 @@ export class ImageGenError extends Error {
   }
 }
 
+interface GenerateContentPart {
+  text?: string;
+  inlineData?: { mimeType?: string; data?: string };
+}
+
 /**
- * Calls the Gemini API's Imagen predict endpoint directly from the browser
- * with a user-supplied API key. There is no backend in this app, so the key
- * only ever lives in this browser's localStorage and is sent straight to
- * Google — the same as pasting it into Postman. Fine for personal/local use;
- * don't ship a build with a real key baked in for a public deployment.
+ * Calls the Gemini API's generateContent endpoint (image-capable model)
+ * directly from the browser with a user-supplied API key. There is no
+ * backend in this app, so the key only ever lives in this browser's
+ * localStorage and is sent straight to Google — the same as pasting it
+ * into Postman. Fine for personal/local use; don't ship a build with a
+ * real key baked in for a public deployment.
  */
 export async function generateImage(prompt: string, reelSize: ReelSizeId): Promise<string> {
   const apiKey = getApiKey();
@@ -61,7 +72,7 @@ export async function generateImage(prompt: string, reelSize: ReelSizeId): Promi
   const model = getModel();
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:predict`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
     {
       method: "POST",
       headers: {
@@ -69,8 +80,11 @@ export async function generateImage(prompt: string, reelSize: ReelSizeId): Promi
         "x-goog-api-key": apiKey,
       },
       body: JSON.stringify({
-        instances: [{ prompt }],
-        parameters: { sampleCount: 1, aspectRatio: aspectRatioFor(reelSize) },
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseModalities: ["IMAGE"],
+          imageConfig: { aspectRatio: aspectRatioFor(reelSize) },
+        },
       }),
     },
   );
@@ -79,7 +93,9 @@ export async function generateImage(prompt: string, reelSize: ReelSizeId): Promi
     let message = `Image API алдаа гарлаа (HTTP ${res.status}).`;
     if (res.status === 400) message = "Хүсэлт буруу байна — model нэр эсвэл prompt-оо шалгана уу.";
     if (res.status === 401 || res.status === 403) message = "API key буруу эсвэл хүчингүй байна.";
-    if (res.status === 429) message = "Хэт олон хүсэлт илгээгдлээ — түр хүлээгээд дахин оролдоно уу.";
+    if (res.status === 404) message = "Энэ model олдсонгүй — Studio хэсэгт model нэрээ шалгана уу.";
+    if (res.status === 429)
+      message = "Free tier-ийн зургийн quota дууссан байна (өдрийн/минутын хязгаар) — Google AI Studio дээрээ billing идэвхжүүлэх эсвэл түр хүлээгээд дахин оролдоно уу.";
     try {
       const body = await res.json();
       const apiMessage = body?.error?.message;
@@ -91,9 +107,11 @@ export async function generateImage(prompt: string, reelSize: ReelSizeId): Promi
   }
 
   const data = await res.json();
-  const base64 = data?.predictions?.[0]?.bytesBase64Encoded;
-  if (!base64) {
+  const parts: GenerateContentPart[] = data?.candidates?.[0]?.content?.parts ?? [];
+  const imagePart = parts.find((p) => p.inlineData?.data);
+  if (!imagePart?.inlineData?.data) {
     throw new ImageGenError("API-с зураг буцаж ирсэнгүй. Дахин оролдоно уу.");
   }
-  return `data:image/png;base64,${base64}`;
+  const mimeType = imagePart.inlineData.mimeType || "image/png";
+  return `data:${mimeType};base64,${imagePart.inlineData.data}`;
 }
