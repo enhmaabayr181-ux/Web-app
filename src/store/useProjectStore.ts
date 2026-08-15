@@ -51,6 +51,7 @@ interface ProjectState {
 
   generateFrameImage: (id: number) => Promise<void>;
   generateAllImages: () => Promise<void>;
+  reportImageLoadError: (id: number) => void;
 
   runProofread: () => void;
 }
@@ -153,7 +154,8 @@ export const useProjectStore = create<ProjectState>()(
         }));
 
         try {
-          const imageUrl = await generateImage(frame.imagePrompt, get().settings.reelSize);
+          const variant = frame.imageUrl ? Date.now() : 0;
+          const imageUrl = await generateImage(frame.imagePrompt, get().settings.reelSize, variant);
           set((state) => {
             if (!state.project) return state;
             const frames = state.project.frames.map((f) =>
@@ -180,6 +182,21 @@ export const useProjectStore = create<ProjectState>()(
           }
         }
       },
+
+      reportImageLoadError: (id) =>
+        set((state) => {
+          if (!state.project) return state;
+          const frames = state.project.frames.map((f) =>
+            f.id === id ? { ...f, imageUrl: undefined } : f,
+          );
+          return {
+            project: { ...state.project, frames },
+            imageGenState: {
+              ...state.imageGenState,
+              [id]: { loading: false, error: "Зураг ачаалагдсангүй. Дахин оролдоно уу." },
+            },
+          };
+        }),
 
       setFrameDuration: (id, duration) =>
         set((state) => {
