@@ -1,4 +1,5 @@
 import { Card } from "../common/Card";
+import { Button } from "../common/Button";
 import { EmptyState } from "../common/EmptyState";
 import { MongolianCheckBadge } from "../common/MongolianCheckBadge";
 import { FrameCard } from "./FrameCard";
@@ -6,6 +7,8 @@ import { useProjectStore } from "../../store/useProjectStore";
 
 export function FramesPanel() {
   const project = useProjectStore((s) => s.project);
+  const generateAllImages = useProjectStore((s) => s.generateAllImages);
+  const imageGenState = useProjectStore((s) => s.imageGenState);
 
   if (!project) {
     return (
@@ -13,12 +16,19 @@ export function FramesPanel() {
     );
   }
 
+  const anyLoading = Object.values(imageGenState).some((s) => s.loading);
+
   return (
     <div className="flex flex-col gap-5 pb-8">
       <Card className="animate-fade-up">
-        <p className="text-xs font-semibold tracking-wide uppercase text-pink-dark mb-1">
-          Reel title
-        </p>
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <p className="text-xs font-semibold tracking-wide uppercase text-pink-dark">
+            Reel title
+          </p>
+          <Button size="sm" variant="secondary" onClick={() => void generateAllImages()} disabled={anyLoading}>
+            {anyLoading ? "Үүсгэж байна…" : "🖼 Бүх зургийг үүсгэх"}
+          </Button>
+        </div>
         <h1 className="text-xl sm:text-2xl font-bold text-ink mb-3">{project.title}</h1>
 
         <p className="text-xs font-semibold tracking-wide uppercase text-lavender-dark mb-1">
