@@ -13,12 +13,13 @@ import {
 } from "../../lib/imageGen";
 
 const PROVIDER_OPTIONS: { id: ImageProvider; label: string }[] = [
+  { id: "sketch", label: "✏️ Энгийн зураг (offline)" },
   { id: "pollinations", label: "🆓 Pollinations (үнэгүй)" },
   { id: "gemini", label: "Google Gemini (key + billing)" },
 ];
 
 export function ImageApiSettings() {
-  const [provider, setProviderState] = useState<ImageProvider>("pollinations");
+  const [provider, setProviderState] = useState<ImageProvider>("sketch");
   const [key, setKey] = useState("");
   const [model, setModelInput] = useState(DEFAULT_IMAGE_MODEL);
   const [saved, setSaved] = useState(false);
@@ -50,12 +51,20 @@ export function ImageApiSettings() {
 
       <ChipGroup options={PROVIDER_OPTIONS} value={provider} onChange={handleProviderChange} />
 
-      {provider === "pollinations" ? (
+      {provider === "sketch" && (
         <p className="text-xs text-ink-soft mt-3 leading-relaxed">
-          Anonymous, үнэгүй, key/карт огт шаардахгүй — "🖼 Зураг үүсгэх" товчийг шууд дарж
-          болно. Чанар нь Google-ийн загваруудаас арай доогуур байж болзошгүй.
+          Сүлжээ, key, төлбөр огт шаардахгүй — таны төхөөрөмж дээр шууд, шинэ scene-ий
+          сэтгэл хөдлөлд тохирсон энгийн pastel line-art зураг зурна. 100% найдвартай, гэхдээ
+          жинхэнэ AI зурагтай харьцуулбал энгийн.
         </p>
-      ) : (
+      )}
+      {provider === "pollinations" && (
+        <p className="text-xs text-ink-soft mt-3 leading-relaxed">
+          Anonymous, үнэгүй, key/карт огт шаардахгүй, гэхдээ гадаад сервистэй сүлжээгээр
+          холбогддог тул зарим орчинд (proxy, firewall) ачаалагдахгүй байж болзошгүй.
+        </p>
+      )}
+      {provider === "gemini" && (
         <>
           <p className="text-xs text-ink-soft mt-3 mb-3 leading-relaxed">
             Google AI Studio-гийн API key хэрэгтэй —{" "}
