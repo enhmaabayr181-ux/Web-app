@@ -155,7 +155,13 @@ export const useProjectStore = create<ProjectState>()(
 
         try {
           const variant = frame.imageUrl ? Date.now() : 0;
-          const imageUrl = await generateImage(frame.imagePrompt, get().settings.reelSize, variant);
+          const settings = get().settings;
+          const imageUrl = await generateImage(frame.imagePrompt, settings.reelSize, {
+            emotion: frame.emotion,
+            mainCharacter: settings.mainCharacter,
+            seed: `${settings.topic}-${id}`,
+            variant,
+          });
           set((state) => {
             if (!state.project) return state;
             const frames = state.project.frames.map((f) =>

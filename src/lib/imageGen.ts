@@ -1,10 +1,11 @@
-import type { ReelSizeId } from "../types";
+import type { MainCharacterId, ReelSizeId } from "../types";
+import { generateSketch } from "./sketchGen";
 
 const API_KEY_STORAGE = "comic-reel-studio:gemini-api-key";
 const MODEL_STORAGE = "comic-reel-studio:gemini-model";
 const PROVIDER_STORAGE = "comic-reel-studio:image-provider";
 
-export type ImageProvider = "pollinations" | "gemini";
+export type ImageProvider = "sketch" | "pollinations" | "gemini";
 
 // Imagen's :predict endpoint (imagen-4.0-generate-001) now 404s for new
 // API keys — Google's own error points new accounts at the generateContent
@@ -14,15 +15,18 @@ export type ImageProvider = "pollinations" | "gemini";
 // free-tier limit for image models is 0, so it needs billing enabled).
 export const DEFAULT_IMAGE_MODEL = "gemini-2.5-flash-image";
 
+const VALID_PROVIDERS: ImageProvider[] = ["sketch", "pollinations", "gemini"];
+
 export function getProvider(): ImageProvider {
-  return localStorage.getItem(PROVIDER_STORAGE) === "gemini" ? "gemini" : "pollinations";
+  const stored = localStorage.getItem(PROVIDER_STORAGE);
+  return (VALID_PROVIDERS as string[]).includes(stored ?? "") ? (stored as ImageProvider) : "sketch";
 }
 
 export function setProvider(provider: ImageProvider) {
-  if (provider === "gemini") {
-    localStorage.setItem(PROVIDER_STORAGE, "gemini");
-  } else {
+  if (provider === "sketch") {
     localStorage.removeItem(PROVIDER_STORAGE);
+  } else {
+    localStorage.setItem(PROVIDER_STORAGE, provider);
   }
 }
 
@@ -165,13 +169,24 @@ async function generateWithGemini(prompt: string, reelSize: ReelSizeId): Promise
   return `data:${mimeType};base64,${imagePart.inlineData.data}`;
 }
 
+export interface GenerateImageOptions {
+  emotion: string;
+  mainCharacter: MainCharacterId;
+  seed: string;
+  variant?: number;
+}
+
 export async function generateImage(
   prompt: string,
   reelSize: ReelSizeId,
-  variant = 0,
+  options: GenerateImageOptions,
 ): Promise<string> {
-  if (getProvider() === "gemini") {
+  const provider = getProvider();
+  if (provider === "gemini") {
     return generateWithGemini(prompt, reelSize);
   }
-  return pollinationsUrl(prompt, reelSize, variant);
+  if (provider === "pollinations") {
+    return pollinationsUrl(prompt, reelSize, options.variant ?? 0);
+  }
+  return generateSketch(options.emotion, reelSize, options.mainCharacter, options.seed + (options.variant ?? 0));
 }
